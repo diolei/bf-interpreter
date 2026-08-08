@@ -1,69 +1,102 @@
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-#define MAX 300000
+// Brainfuck interpreter with a bounded tape, precomputed bracket jumps, and
+// live stdin input.
 
-void brainFuck(char *code, char *input) {
-    // Data array initialized to zero
-    char tape[MAX] = {0};
-    // Data pointer
-    char *dp = tape;
-    // Input pointer
-    char *ip = input;
-    // Current stream char
-    char c;
-    // Loop pointer 
-    char *lp;
+#define TAPE_SIZE 300000
 
-    while ((c = *code++)) {
-        switch (c) {
-            case '<':
-                dp--; // Move data pointer to the left
+static unsigned char tape[TAPE_SIZE];
+
+static void fail(const char *message) {
+    fprintf(stderr, "brainfuck: %s\n", message);
+    exit(1);
+}
+
+static int run(const char *code) {
+    size_t n = strlen(code);
+    size_t *jumps = malloc(n * sizeof *jumps);
+    size_t *stack = malloc(n * sizeof *stack);
+    if (!jumps || !stack) fail("out of memory");
+
+    // Map each bracket to its match; this also validates pairing.
+    size_t depth = 0;
+    for (size_t i = 0; i < n; i++) {
+        if (code[i] == '[') {
+            stack[depth++] = i;
+        } else if (code[i] == ']') {
+            if (depth == 0) fail("unmatched ']'");
+            size_t open = stack[--depth];
+            jumps[open] = i;
+            jumps[i] = open;
+        }
+    }
+    if (depth > 0) fail("unmatched '['");
+
+    size_t dp = 0;
+    for (size_t i = 0; i < n; i++) {
+        switch (code[i]) {
+            case '>': // Move the data pointer right.
+                if (++dp >= TAPE_SIZE) fail("tape overrun");
                 break;
-            case '>':
-                dp++; // Move data pointer to the right
+            case '<': // Move the data pointer left.
+                if (dp == 0) fail("tape underrun");
+                dp--;
                 break;
-            case '+':
-                (*dp)++; // Increment the value at the current address
+            case '+': // Increment the current cell.
+                tape[dp]++;
                 break;
-            case '-':
-                (*dp)--; // Decrement the value at the current address
+            case '-': // Decrement the current cell.
+                tape[dp]--;
                 break;
-            case '.':
-                putchar(*dp); // Output the current byte
+            case '.': // Output the current cell as a character.
+                putchar(tape[dp]);
                 break;
-            case ',':
-                *dp = *ip++; // Accept input and store it in the current address
+            case ',': { // Read one byte from stdin; EOF sets the cell to zero.
+                int c = getchar();
+                tape[dp] = c == EOF ? 0 : (unsigned char)c;
                 break;
-            case '[': // Start of loop, jump forward if the value at the current address is zero
-                if (!*dp) {
-                    // Inside loop flag
-                    int loop_cnt = 1;
-                    while (loop_cnt) {
-                        c = *code++;
-                        if (c == '[') {
-                            loop_cnt++;
-                        } else if (c == ']') {
-                            loop_cnt--;
-                        }
-                    }
-                } else {
-                    lp = code; // Save the loop start position
-                }
+            }
+            case '[': // Jump past the matching ']' when the cell is zero.
+                if (tape[dp] == 0) i = jumps[i];
                 break;
-            case ']': // End of loop, jump back to the start if the value at the current address is non-zero
-                if (*dp) {
-                    code = lp; // Jump back to starting position
-                } 
+            case ']': // Jump back to the matching '[' when the cell is nonzero.
+                if (tape[dp] != 0) i = jumps[i];
                 break;
         }
     }
-}
 
-int main(void) {
-    char *code = "++++++++++[>+++++++>++++++++++>+++>+<<<<-]>++.>+.+++++++..+++.>++.<<+++++++++++++++.>.+++.------.--------.>+.>.";
-    char *input = "";
-    brainFuck(code, input);
-
+    free(jumps);
+    free(stack);
     return 0;
 }
 
+int main(int argc, char **argv) {
+    char *file_code = NULL;
+    // Built-in Hello World, used when no file is given.
+    const char *code =
+        "++++++++++[>+++++++>++++++++++>+++>+<<<<-]>++.>+.+++++++..+++.>++.<<++"
+        "+++++++++++++.>.+++.------.--------.>+.>.";
+
+    if (argc > 1) {
+        FILE *file = fopen(argv[1], "r");
+        if (!file) fail("cannot open file");
+        if (fseek(file, 0, SEEK_END) != 0) fail("cannot read file");
+        long size = ftell(file);
+        if (size <= 0) fail("empty program");
+        fseek(file, 0, SEEK_SET);
+        file_code = malloc((size_t)size + 1);
+        if (!file_code) fail("out of memory");
+        if (fread(file_code, 1, (size_t)size, file) != (size_t)size) {
+            fail("cannot read file");
+        }
+        fclose(file);
+        file_code[size] = '\0';
+        code = file_code;
+    }
+
+    int status = run(code);
+    free(file_code);
+    return status;
+}

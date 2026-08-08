@@ -1,44 +1,43 @@
-# Brainfuck Interpreter 
- 
-This interpreter allows you to provide Brainfuck code, and read its output, as well as, user input via the `*input` pointer.
+# Brainfuck Interpreter
 
-## Language Overview
+A minimal Brainfuck interpreter in C with a bounded tape, precomputed bracket jumps, and live stdin input.
 
-Brainfuck is a minimal esoteric programming language that is Turing complete, but wasn't designed for software production, it was meant to be a language with the smallest possible compiler.
-It is known for its simplistic design, consisting of only eight commands, which makes it challenging to write and read programs.
-A tape of memory cells is used, where each cell can store a single byte of data, and a memory pointer that points to the current cell. The language commands manipulate the memory cells and the memory pointer.
+## Why I Built This
 
-The commands are as follows:
-+ `>` Increment the memory pointer, moving it to the next cell.
-+ `<` Decrement the memory pointer, moving it to the previous cell.
-+ `+` Increment the value in the current memory cell by one.
-+ `-` Decrement the value in the current memory cell by one.
-+ `.` Output the value in the current memory cell as a character.
-+ `,` Accept input from the user and store it in the current memory cell.
-+ `[` If the value in the current memory cell is zero, jump forward to the corresponding ] command. Otherwise, continue execution.
-+ `]` If the value in the current memory cell is nonzero, jump back to the corresponding [ command. Otherwise, continue execution.
+Ever since I discovered Brainfuck, I've been as intrigued as I was confused by it. Urban Müller took minimalism to an extreme, and I wanted to understand how he did it.
 
+## Language
 
-## Compilation
+Brainfuck is a minimal esoteric programming language. It is Turing complete, but it was not designed for software production; it was meant to be a language with the smallest possible compiler. Its simple design consists of only eight commands, which makes writing and reading programs challenging. The interpreter uses a tape of memory cells, where each cell stores a single byte, and a memory pointer that points to the current cell. The commands manipulate the cells and the pointer.
 
-To compile the code, make sure you have `make` installed, and run the following command in the source directory:
+## Build
 
 ```
 make
 ```
 
+Remove the binary with `make clean`.
+
 ## Usage
 
-After compiling the code, just run the `brainfuck` executable, make sure to change the original brainfuck code in the source file as you wish:  
-
 ```
-./brainfuck
+./brainfuck            # runs the built-in Hello World
+./brainfuck program.bf # runs a program file
 ```
 
-## Cleanup
+`,` reads input from stdin at runtime; EOF sets the current cell to zero. Any character outside the eight commands below is ignored.
 
-To remove the generated file, you can simply use the following command:
+## Commands
 
-```
-make clean
-```
+| Command | Effect |
+| ------- | ------ |
+| `>` | Move the data pointer right. |
+| `<` | Move the data pointer left. |
+| `+` | Increment the current cell. |
+| `-` | Decrement the current cell. |
+| `.` | Output the current cell as a character. |
+| `,` | Read one byte from stdin into the current cell. |
+| `[` | Jump past the matching `]` when the current cell is zero. |
+| `]` | Jump back to the matching `[` when the current cell is nonzero. |
+
+Cells hold unsigned bytes and wrap modulo 256. The tape holds 300,000 cells; moving past either end aborts with an error. Unmatched brackets abort with an error.
